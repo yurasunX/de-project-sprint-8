@@ -1,0 +1,14 @@
+.local/
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+*.pyc
+checkpoints/
+artifacts/
+.venv/
+.DS_Store
+*.egg-info/
+build/
+dist/
