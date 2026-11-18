@@ -1,0 +1,7 @@
+.git
+.local
+.venv
+.env*
+__pycache__
+checkpoints
+artifacts
