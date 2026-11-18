@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: de
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:?Set DEMO_POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d de"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  kafka:
+    image: apache/kafka:3.9.1
+    ports:
+      - "127.0.0.1:19092:19092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    volumes:
+      - kafka_data:/tmp/kraft-combined-logs
+  app:
+    build: .
+    profiles: ["app"]
+    env_file: .local/demo.env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SOURCE_PG_HOST: postgres
+      SOURCE_PG_PORT: 5432
+      FEEDBACK_PG_HOST: postgres
+      FEEDBACK_PG_PORT: 5432
+      CHECKPOINT_LOCATION: /app/checkpoints/notifications
+    volumes:
+      - spark_checkpoints:/app/checkpoints
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+volumes:
+  postgres_data:
+  kafka_data:
+  spark_checkpoints:
